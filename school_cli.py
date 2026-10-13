@@ -16,6 +16,120 @@ from myschoolapp_mcp import server
 
 BLOCKED = {"cookie_refresh"}             # never start a password login from here
 
+
+# ---------------------------------------------------------------------------
+# Class pages: bulletin board, topics, downloads (not covered upstream).
+# Endpoints found by probing the US deployment on 2026-10-13. All GET.
+# ---------------------------------------------------------------------------
+import html as _html, re as _re
+
+_LIST_Q = "?format=json&editMode=false&active=true&future=false&expired=false&contextLabelId=2"
+# Bulletin-board module type -> list endpoint (per section)
+_MODULES = {
+    250: ("Text", "/api/text/forsection/{sid}/" + _LIST_Q),
+    2: ("Links", "/api/link/forsection/{sid}/" + _LIST_Q),
+    3: ("Downloads", "/api/download/forsection/{sid}/" + _LIST_Q),
+    10: ("Announcements", "/api/announcement/forsection/{sid}/" + _LIST_Q),
+    78: ("Syllabus", "/api/syllabus/forsection/{sid}/" + _LIST_Q),
+    80: ("Expectations", "/api/expectation/forsection/{sid}/" + _LIST_Q),
+    5: ("Events", "/api/event/forsection/{sid}/" + _LIST_Q),
+    31: ("Photos", "/api/media/sectionmediaget/{sid}/" + _LIST_Q + "&contentId=31"),
+}
+_SKIP = {408}   # built-in widget on every class board; no list endpoint found, carries no posted content
+
+def _get(path):
+    r = server.api_request("GET", path)
+    if r.get("status") != 200:
+        return {"error": r.get("status"), "path": path.split("?")[0]}
+    return r.get("body")
+
+def _text(h):
+    if not h:
+        return ""
+    h = _re.sub(r"(?i)<br\s*/?>|</(div|p|li|h\d)>", "\n", h)
+    t = _html.unescape(_re.sub(r"<[^>]+>", "", h))
+    return _re.sub(r"\n\s*\n+", "\n", t).strip()
+
+def _clean(items):
+    out = []
+    for it in items if isinstance(items, list) else []:
+        row = {}
+        for k in ("Description", "Headline", "Name", "AlbumName", "ShortDescription"):
+            if it.get(k):
+                row["title"] = _text(it[k]); break
+        body = it.get("LongText") or it.get("LongDescription") or it.get("BriefDescription")
+        if body:
+            row["text"] = _text(body)
+        for k in ("Url", "DownloadUrl", "FileName", "FriendlyFileName", "PublishDate", "ExpireDate"):
+            if it.get(k):
+                row[k.lower()] = it[k]
+        if it.get("FilePath") and it.get("FileName") and not it.get("DownloadUrl") and "thumb_" not in it["FileName"]:
+            row["downloadurl"] = it["FilePath"] + it["FileName"]
+        if "thumb_" in (it.get("FileName") or "") and len(row) <= 1:
+            continue   # topic cover image
+        out.append(row)
+    return out
+
+def _sections(section_id=None):
+    cls = server.classes()
+    rows = cls.get("body", []) if isinstance(cls, dict) else []
+    if section_id:
+        rows = [r for r in rows if str(r["section_id"]) == str(section_id) or str(section_id).lower() in r["class"].lower()]
+    return rows
+
+def class_list():
+    """List classes with section ids and teachers (use the id or part of the name below)."""
+    return [{"section_id": r["section_id"], "class": r["class"], "teacher": r["teacher"]} for r in _sections()]
+
+def bulletin_board(section=None):
+    """Read a class's bulletin board (text, links, downloads, announcements). section = id or name fragment; omit for all classes."""
+    out = []
+    for r in _sections(section):
+        sid = r["lead_section_id"]
+        layout = _get(f"/api/datadirect/BulletinBoardContentGet/?format=json&sectionId={sid}&associationId=1&pendingInd=false")
+        types = [c["ContentId"] for c in layout] if isinstance(layout, list) else []
+        mods = {}
+        for t in dict.fromkeys(types):
+            if t in _SKIP:
+                continue
+            if t in _MODULES:
+                name, path = _MODULES[t]
+                mods[name] = _clean(_get(path.format(sid=sid)))
+            else:
+                mods[f"type_{t}"] = "module type not supported yet"
+        out.append({"class": r["class"], "section_id": sid, "modules": mods})
+    return out
+
+def topics(section=None):
+    """List a class's topics (id + index id needed for topic_detail). section = id or name fragment; omit for all."""
+    out = []
+    for r in _sections(section):
+        sid = r["lead_section_id"]
+        ts = _get(f"/api/datadirect/sectiontopicsget/{sid}/?format=json&active=true&future=false&expired=false&sharedTopics=false")
+        out.append({"class": r["class"], "topics": [
+            {"topic_id": t["TopicID"], "topic_index_id": t["TopicIndexID"], "name": t["Name"],
+             "description": _text(t.get("Description")), "published": t.get("PublishDate")}
+            for t in (ts if isinstance(ts, list) else [])]})
+    return out
+
+def topic_detail(topic_id, topic_index_id):
+    """Read everything inside one topic (text, links, files)."""
+    items = _get(f"/api/datadirect/topiccontentget/{topic_id}/?format=json&index_id={topic_index_id}&id={topic_index_id}")
+    return _clean(items)
+
+def download(path, out_dir=".", name=None):
+    """Save a file from the school site (a downloadurl like /ftpimages/...) into out_dir. Returns the saved path."""
+    from pathlib import Path as _P
+    c = server._get_client()
+    resp = c._client.get(c._resolve_path(path))   # host-pinned client from upstream
+    resp.raise_for_status()
+    dest = _P(out_dir).expanduser() / (name or _P(path.split("?")[0]).name)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(resp.content)
+    return {"saved": str(dest), "bytes": len(resp.content)}
+
+EXTRA = {f.__name__: f for f in (class_list, bulletin_board, topics, topic_detail, download)}
+
 def tools():
     out = {}
     for name, fn in vars(server).items():
@@ -24,6 +138,7 @@ def tools():
         if name in BLOCKED or name == "main":
             continue
         out[name] = fn
+    out.update(EXTRA)
     return out
 
 def main():

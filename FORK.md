@@ -4,6 +4,11 @@ Private copy of [6a6179/myschoolapp-mcp](https://github.com/6a6179/myschoolapp-m
 
 ## Changes from upstream
 - `school_cli.py`: a thin CLI over the server's tool functions (`school list`, `school <tool> '{json args}'`), so an agent can call tools from the shell instead of loading 32 MCP tool schemas into every session. `cookie_refresh` is blocked in the CLI.
+- Class-page commands not in upstream (endpoints probed on the US deployment, 2026-10-13, all GET):
+  - `class_list`: section ids, class names, teachers
+  - `bulletin_board [section]`: text, links, downloads, announcements, syllabus, expectations, events, photos per class. `section` = id or a name fragment like "english". Module 408 is a built-in widget with no content and is skipped.
+  - `topics [section]` and `topic_detail topic_id topic_index_id`: topic lists and everything inside one topic, including file `downloadurl`s
+  - `download path [out_dir] [name]`: save a file through the host-pinned client
 
 ## Safe config
 `.env` holds only `MSA_SUBDOMAIN`, `MSA_STUDENT_ID`, and `MSA_TIMEZONE`. No password, no `MSA_AUTO_REFRESH`, no `MSA_ALLOW_WRITES`. The cookie goes in `~/.myschoolapp-mcp/cookie.txt` (chmod 600). Do not run `scripts/probe_api.py`.
