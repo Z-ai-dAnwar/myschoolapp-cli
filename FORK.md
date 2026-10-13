@@ -9,6 +9,7 @@ Private copy of [6a6179/myschoolapp-mcp](https://github.com/6a6179/myschoolapp-m
   - `bulletin_board [section]`: text, links, downloads, announcements, syllabus, expectations, events, photos per class. `section` = id or a name fragment like "english". Module 408 is a built-in widget with no content and is skipped.
   - `topics [section]` and `topic_detail topic_id topic_index_id`: topic lists and everything inside one topic, including file `downloadurl`s
   - `download path [out_dir] [name]`: save a file through the host-pinned client
+  - `read_assignment assignment_index_id`: description, links, and every attachment downloaded to `~/.cache/school-portal/<id>/` with text extracted
 
 ## Safe config
 `.env` holds only `MSA_SUBDOMAIN`, `MSA_STUDENT_ID`, and `MSA_TIMEZONE`. No password, no `MSA_AUTO_REFRESH`, no `MSA_ALLOW_WRITES`. The cookie goes in `~/.myschoolapp-mcp/cookie.txt` (chmod 600). Do not run `scripts/probe_api.py`.

@@ -128,7 +128,28 @@ def download(path, out_dir=".", name=None):
     dest.write_bytes(resp.content)
     return {"saved": str(dest), "bytes": len(resp.content)}
 
-EXTRA = {f.__name__: f for f in (class_list, bulletin_board, topics, topic_detail, download)}
+def read_assignment(assignment_index_id):
+    """Open an assignment: description, links, and every attached file, downloaded to
+    ~/.cache/school-portal/<id>/ with its text extracted (PDF via pdftotext, docx via textutil)."""
+    import shutil, subprocess
+    from pathlib import Path as _P
+    from urllib.parse import urlparse
+    d = server.assignment_detail(assignment_index_id).get("assignment", {})
+    cache = _P("~/.cache/school-portal").expanduser() / str(assignment_index_id)
+    files = []
+    for f in d.get("resources", {}).get("downloads", []):
+        path = urlparse(f["url"]).path
+        saved = download(path, str(cache), f.get("name"))["saved"]
+        text = None
+        if saved.lower().endswith(".pdf") and shutil.which("pdftotext"):
+            text = subprocess.run(["pdftotext", "-layout", saved, "-"], capture_output=True, text=True).stdout
+        elif saved.lower().endswith((".docx", ".doc", ".rtf", ".txt")):
+            text = subprocess.run(["textutil", "-convert", "txt", "-stdout", saved], capture_output=True, text=True).stdout
+        files.append({"name": f.get("name"), "saved": saved, "text": (text or "").strip() or None})
+    return {"title": d.get("title"), "class": d.get("class"), "due": d.get("due"), "status": d.get("status"),
+            "description": d.get("description"), "links": d.get("resources", {}).get("links", []), "files": files}
+
+EXTRA = {f.__name__: f for f in (class_list, bulletin_board, topics, topic_detail, download, read_assignment)}
 
 def tools():
     out = {}
