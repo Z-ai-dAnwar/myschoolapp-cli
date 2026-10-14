@@ -185,14 +185,31 @@ def _harvest(headless, wait_s):
         pg.goto(_portal() + "/app/student", timeout=60000)
         deadline = _time.time() + wait_s
         ok = False
+        clicked = False
+        probe = (_portal() + "/api/user/profiletabs?showuserid="
+                 + os.environ.get("MSA_STUDENT_ID", "") + "&personaId=2")
         while _time.time() < deadline:
             _time.sleep(2)
-            url = pg.url
-            names = {c["name"] for c in ctx.cookies(_portal())}
-            if "myschoolapp.com/app" in url and "#login" not in url and "t" in names:
-                _time.sleep(3)          # let the app finish setting its cookies
-                ok = True
-                break
+            # Headless refresh: "Remember me" pre-fills the username, so clicking Next
+            # hands off to the school's Microsoft SSO, which signs in from its own saved
+            # session. Never fills a password.
+            if headless and not clicked:
+                try:
+                    user = pg.query_selector("#Username")
+                    nxt = pg.query_selector("#nextBtn")
+                    if user and nxt and user.input_value() and nxt.is_visible():
+                        nxt.click()
+                        clicked = True
+                except Exception:
+                    pass
+            if "t" in {c["name"] for c in ctx.cookies(_portal())}:
+                try:
+                    if ctx.request.get(probe).status == 200:
+                        _time.sleep(2)
+                        ok = True
+                        break
+                except Exception:
+                    pass
         cookies = ctx.cookies(_portal())
         ctx.close()
     if not ok:
