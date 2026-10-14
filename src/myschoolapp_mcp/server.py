@@ -736,7 +736,9 @@ def assignment_detail(
         "course_ended": bool(body.get("CourseEnded")),
         "status": status_label(grade.get("AssignmentStatusType")),
         # or_none, not `or`: a real 0 score must survive.
-        "grade": or_none(grade.get("Grade")),
+        # Some teachers publish only the gradebook points; "Grade" stays "" then.
+        "grade": or_none(grade.get("Grade")) if or_none(grade.get("Grade")) is not None
+                 else (grade.get("GradebookGrade") if grade.get("HasGrade") else None),
         "comment": or_none(grade.get("GradedComment")),
         "graded": bool(grade.get("HasGrade")),
         "late": bool(grade.get("Late")),
