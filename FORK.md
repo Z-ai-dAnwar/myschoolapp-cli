@@ -9,6 +9,7 @@ Private copy of [6a6179/myschoolapp-mcp](https://github.com/6a6179/myschoolapp-m
   - `bulletin_board [section]`: text, links, downloads, announcements, syllabus, expectations, events, photos per class. `section` = id or a name fragment like "english". Module 408 is a built-in widget with no content and is skipped.
   - `topics [section]` and `topic_detail topic_id topic_index_id`: topic lists and everything inside one topic, including file `downloadurl`s
   - `download path [out_dir] [name]`: save a file through the host-pinned client
+  - `login` / `refresh`: a dedicated browser profile the user signs into once. Expired sessions are refreshed headless from it and the command is retried automatically. No password stored. Replaces upstream's password-based `cookie_refresh`.
   - `read_assignment assignment_index_id`: description, links, and every attachment downloaded to `~/.cache/school-portal/<id>/` with text extracted
 
 ## Safe config

@@ -32,22 +32,27 @@ MSA_TIMEZONE=America/New_York
 
 You can find your user id in DevTools > Network on the portal. It's the number in `large_user_<id>_...jpg` or `showuserid=<id>`.
 
-### Cookie
-
-Log in to the portal in your browser. Open DevTools > Network, click any `/api/` request, and copy the value of the `cookie:` request header. Then:
+### Log in (once)
 
 ```bash
-mkdir -p ~/.myschoolapp-mcp && chmod 700 ~/.myschoolapp-mcp
-pbpaste > ~/.myschoolapp-mcp/cookie.txt && chmod 600 ~/.myschoolapp-mcp/cookie.txt   # macOS
+school login
 ```
 
-Don't paste the cookie into a chat or commit it. It logs in as you. It expires every few weeks; when commands start failing with an auth error, copy a fresh one.
+A browser window opens. Sign in yourself and tick **Remember me** (and **Stay signed in** if Microsoft asks). The tool saves a session cookie to `~/.myschoolapp-mcp/cookie.txt` (0600) and keeps that browser profile in `~/.myschoolapp-mcp/profile/`.
+
+Portal cookies can die within hours. When a command hits an expired session, the CLI reopens that profile invisibly, gets a fresh cookie from your saved login, and retries the command. You only run `school login` again when the saved login itself expires. The tool never stores or types your password.
+
+The profile folder holds a logged-in browser session, so treat it like a password. Don't sync or share it.
+
+Manual fallback: copy the `cookie:` request header from DevTools > Network on any `/api/` request into `~/.myschoolapp-mcp/cookie.txt`.
 
 ## Commands
 
 ```bash
 school list                                   # every command
-school whoami                                 # check the cookie works
+school login                                  # one-time sign-in (visible window)
+school refresh                                # fresh cookie from the saved login (automatic on expiry)
+school whoami                                 # check the session works
 school assignments                            # everything due, grouped (today, tomorrow, this week...)
 school missing_assignments
 school read_assignment '{"assignment_index_id": 123}'   # description + attachments, text extracted

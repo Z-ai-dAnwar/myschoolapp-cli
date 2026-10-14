@@ -149,7 +149,75 @@ def read_assignment(assignment_index_id):
     return {"title": d.get("title"), "class": d.get("class"), "due": d.get("due"), "status": d.get("status"),
             "description": d.get("description"), "links": d.get("resources", {}).get("links", []), "files": files}
 
-EXTRA = {f.__name__: f for f in (class_list, bulletin_board, topics, topic_detail, download, read_assignment)}
+# ---------------------------------------------------------------------------
+# Durable login: a dedicated browser profile the user signs into ONCE by hand.
+# When the API cookie dies, `refresh` reopens that profile headless; the saved
+# Blackbaud ID / Microsoft "remember me" session mints a fresh cookie. No password
+# is stored or typed by this tool.
+# ---------------------------------------------------------------------------
+import glob as _glob, time as _time
+
+_AUTH_DIR = Path("~/.myschoolapp-mcp").expanduser()
+_PROFILE = _AUTH_DIR / "profile"
+_COOKIE = _AUTH_DIR / "cookie.txt"
+
+def _portal():
+    return f"https://{os.environ['MSA_SUBDOMAIN']}.myschoolapp.com"
+
+def _browser_exe():
+    if os.environ.get("MSA_BROWSER"):
+        return os.environ["MSA_BROWSER"]
+    hits = sorted(_glob.glob(os.path.expanduser(
+        "~/Library/Caches/ms-playwright/chromium-*/chrome-mac*/*.app/Contents/MacOS/*")))
+    return hits[-1] if hits else None
+
+def _harvest(headless, wait_s):
+    from playwright.sync_api import sync_playwright
+    _AUTH_DIR.mkdir(mode=0o700, exist_ok=True)
+    _PROFILE.mkdir(mode=0o700, exist_ok=True)
+    kw = {"headless": headless}
+    exe = _browser_exe()
+    if exe:
+        kw["executable_path"] = exe
+    with sync_playwright() as p:
+        ctx = p.chromium.launch_persistent_context(str(_PROFILE), **kw)
+        pg = ctx.pages[0] if ctx.pages else ctx.new_page()
+        pg.goto(_portal() + "/app/student", timeout=60000)
+        deadline = _time.time() + wait_s
+        ok = False
+        while _time.time() < deadline:
+            _time.sleep(2)
+            url = pg.url
+            names = {c["name"] for c in ctx.cookies(_portal())}
+            if "myschoolapp.com/app" in url and "#login" not in url and "t" in names:
+                _time.sleep(3)          # let the app finish setting its cookies
+                ok = True
+                break
+        cookies = ctx.cookies(_portal())
+        ctx.close()
+    if not ok:
+        return False
+    header = "; ".join(f"{c['name']}={c['value']}" for c in cookies)
+    fd = os.open(_COOKIE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(header)
+    server._drop_client()
+    return True
+
+def login():
+    """Open a visible browser window. Sign in yourself (tick Remember me / Stay signed in). Saves a fresh cookie when done. Needed once, then only if refresh stops working."""
+    ok = _harvest(headless=False, wait_s=300)
+    return {"ok": ok, "next": "run `school whoami`" if ok else "login window timed out after 5 minutes"}
+
+def refresh():
+    """Get a fresh cookie invisibly from the saved login. Runs automatically when a command hits an expired session."""
+    ok = _harvest(headless=True, wait_s=45)
+    return {"ok": ok, "next": None if ok else "saved login expired; run `school login` and sign in again"}
+
+def _expired(res):
+    return isinstance(res, dict) and (res.get("auth_expired") or res.get("status") == 403)
+
+EXTRA = {f.__name__: f for f in (class_list, bulletin_board, topics, topic_detail, download, read_assignment, login, refresh)}
 
 def tools():
     out = {}
@@ -173,9 +241,18 @@ def main():
     if name not in t:
         sys.exit(f"unknown or blocked tool: {name}. Run `school list`.")
     kwargs = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
-    res = t[name](**kwargs)
-    if inspect.isawaitable(res):
-        res = asyncio.run(res)
+    def run():
+        r = t[name](**kwargs)
+        return asyncio.run(r) if inspect.isawaitable(r) else r
+    try:
+        res = run()
+    except RuntimeError as e:          # no cookie file yet
+        res = {"auth_expired": True, "error": str(e).splitlines()[0]}
+    if name not in ("login", "refresh") and _expired(res) and _PROFILE.exists():
+        if refresh()["ok"]:
+            res = run()
+        else:
+            res = {"auth_expired": True, "next": "saved login expired; run `school login`"}
     print(json.dumps(res, indent=2, default=str))
 
 if __name__ == "__main__":
