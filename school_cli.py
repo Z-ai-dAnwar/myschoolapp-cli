@@ -13,6 +13,9 @@ os.chdir(Path(__file__).parent)          # so .env is found
 from dotenv import load_dotenv
 load_dotenv()
 from myschoolapp_mcp import server
+import logging
+for _n in ("httpx", "httpcore"):
+    logging.getLogger(_n).setLevel(logging.WARNING)   # keep stdout pure JSON
 
 BLOCKED = {"cookie_refresh"}             # never start a password login from here
 
