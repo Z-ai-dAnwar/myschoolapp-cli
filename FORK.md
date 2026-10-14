@@ -1,4 +1,4 @@
-# myschoolapp-cli
+# Changes from upstream
 
 Private copy of [6a6179/myschoolapp-mcp](https://github.com/6a6179/myschoolapp-mcp) (MIT), based on upstream commit `598f943`, which was security-reviewed on 2026-10-13. The original copyright and LICENSE are kept.
 
