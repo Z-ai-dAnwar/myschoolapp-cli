@@ -234,7 +234,23 @@ def refresh():
 def _expired(res):
     return isinstance(res, dict) and (res.get("auth_expired") or res.get("status") == 403)
 
-EXTRA = {f.__name__: f for f in (class_list, bulletin_board, topics, topic_detail, download, read_assignment, login, refresh)}
+_STATUS = {"todo": -1, "to do": -1, "in progress": 0, "inprogress": 0, "completed": 1, "done": 1, "complete": 1}
+
+def mark(assignment_index_id, status="completed"):
+    """The ONE write command: set your own Assignment Center status (todo / in progress / completed). Changes nothing else."""
+    code = _STATUS.get(str(status).lower().strip())
+    if code is None:
+        return {"error": f"status must be one of: todo, in progress, completed (got {status!r})"}
+    c = server._get_client()
+    tok = c.request("GET", "/api/security/csrftoken").get("body")
+    token = tok.get("TokenId") if isinstance(tok, dict) else tok
+    r = c.request("POST", "/api/assignment2/assignmentstatusupdate",
+                  json_body={"assignmentIndexId": int(assignment_index_id), "assignmentStatus": code},
+                  extra_headers={"RequestVerificationToken": str(token)})
+    after = server.assignment_detail(assignment_index_id).get("assignment", {})
+    return {"http_status": r.get("status"), "title": _html.unescape(_html.unescape(after.get("title") or "")), "status_now": after.get("status")}
+
+EXTRA = {f.__name__: f for f in (class_list, bulletin_board, topics, topic_detail, download, read_assignment, login, refresh, mark)}
 
 def tools():
     out = {}

@@ -10,6 +10,7 @@ Private copy of [6a6179/myschoolapp-mcp](https://github.com/6a6179/myschoolapp-m
   - `topics [section]` and `topic_detail topic_id topic_index_id`: topic lists and everything inside one topic, including file `downloadurl`s
   - `download path [out_dir] [name]`: save a file through the host-pinned client
   - `login` / `refresh`: a dedicated browser profile the user signs into once. Expired sessions are refreshed headless from it and the command is retried automatically. No password stored. Replaces upstream's password-based `cookie_refresh`.
+  - `mark assignment_index_id [status]`: the ONE write command. It sets your own Assignment Center status (todo / in progress / completed) via POST /api/assignment2/assignmentstatusupdate with a CSRF token. Verified 2026-10-13.
   - `read_assignment assignment_index_id`: description, links, and every attachment downloaded to `~/.cache/school-portal/<id>/` with text extracted
 
 ## Safe config

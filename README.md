@@ -56,6 +56,7 @@ school whoami                                 # check the session works
 school assignments                            # everything due, grouped (today, tomorrow, this week...)
 school missing_assignments
 school read_assignment '{"assignment_index_id": 123}'   # description + attachments, text extracted
+school mark '{"assignment_index_id": 123, "status": "completed"}'   # todo / in progress / completed
 school gradebook
 school schedule
 school class_list                             # classes, section ids, teachers
@@ -69,7 +70,7 @@ Arguments are a JSON object. `read_assignment` saves attachments to `~/.cache/sc
 
 ## Safety
 
-- Every command only reads. `cookie_refresh`, which starts a password login, is blocked in the CLI. Writes through `api_request` stay off unless you set `MSA_ALLOW_WRITES`.
+- Every command only reads except `mark`, which changes only your own assignment status. `cookie_refresh`, which starts a password login, is blocked in the CLI. Writes through `api_request` stay off unless you set `MSA_ALLOW_WRITES`.
 - Requests are pinned to your school's HTTPS host, redirects included.
 - Don't run `scripts/probe_api.py`. It's an upstream developer tool that dumps raw API responses and cookies to disk.
 - The endpoints are private and were reverse-engineered, so they can break whenever Blackbaud changes the site.
